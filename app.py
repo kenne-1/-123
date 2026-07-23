@@ -117,6 +117,43 @@ def load_data(uploaded_file=None) -> pd.DataFrame:
     return validate_and_prepare(df)
 
 
+def get_llm_settings() -> tuple[str, str]:
+    """读取大模型配置；没有配置时保持纯本地 Prompt 模式。"""
+    try:
+        api_key = str(st.secrets.get("OPENAI_API_KEY", "")).strip()
+        model = str(st.secrets.get("OPENAI_MODEL", "gpt-5.6")).strip()
+    except Exception:
+        api_key = ""
+        model = "gpt-5.6"
+    return api_key, model or "gpt-5.6"
+
+
+def call_llm(prompt: str) -> tuple[bool, str]:
+    """调用 OpenAI Responses API，返回是否成功和可展示文本。"""
+    api_key, model = get_llm_settings()
+    if not api_key:
+        return False, "尚未配置大模型 API Key。请先在本地或 Streamlit Cloud 的 Secrets 中配置。"
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key)
+        response = client.responses.create(
+            model=model,
+            instructions=(
+                "你是消费品牌内容策略顾问。请基于热点数据给出清晰、具体、可执行的建议，"
+                "不要编造数据，也不要把模拟数据描述成真实平台数据。"
+            ),
+            input=prompt,
+        )
+        result = (response.output_text or "").strip()
+        if not result:
+            return False, "大模型没有返回可展示的文本，请稍后重试。"
+        return True, result
+    except Exception as exc:
+        return False, f"大模型调用失败，请检查 API Key、模型名称或账户额度。\n\n错误信息：{exc}"
+
+
 def validate_and_prepare(df: pd.DataFrame) -> pd.DataFrame:
     missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing:
@@ -636,13 +673,13 @@ def main() -> None:
     st.set_page_config(page_title="AI 辅助热点洞察与趋势决策工作流", layout="wide")
     apply_ui_styles()
     st.title("AI 辅助热点洞察与趋势决策工作流")
-    st.caption("本 demo 仅使用模拟数据，本地运行，不爬取网站，不调用外部 API。")
+    st.caption("默认使用模拟数据和本地规则；配置 API Key 后，可直接调用大模型生成热点解读。")
     st.caption("热点等级：夯＝直接跟进 · 人上人＝小范围试水 · NPC＝继续观察 · 拉完了＝不建议使用")
 
     with st.expander("项目说明", expanded=True):
         st.write(
             "这是一个作品集用的简化工作流：从模拟热点内容进入，经过清洗、候选短语提取、"
-            "增长与覆盖判断、生命周期标注、AI Prompt 生成，最后输出可下载报告。"
+            "增长与覆盖判断、生命周期标注，并生成可选的大模型分析 Prompt，最后输出可下载报告。"
         )
 
     uploaded_file = st.sidebar.file_uploader("上传自己的 CSV", type=["csv"])
@@ -756,14 +793,35 @@ def main() -> None:
         render_level_callout(selected["decision"])
         st.write(f"风险提示：{selected['risk_tip']}")
     with right:
-        st.markdown("#### 交给大模型的 AI Prompt")
-        st.caption("复制这段 Prompt 到 Kimi、通义或 ChatGPT，让大模型根据当前数据制定内容建议。")
-        st.text_area(
-            "提示词内容",
-            selected["llm_prompt"],
-            height=360,
-            key=f"llm_prompt_{selected_state_key}",
-        )
+        st.markdown("#### 大模型分析")
+        st.caption("配置 API Key 后，点击按钮即可让大模型根据当前热点数据生成内容建议。")
+        api_key, _ = get_llm_settings()
+        if api_key:
+            st.success("大模型 API 已配置")
+        else:
+            st.info("当前为本地 Prompt 模式：配置 API Key 后即可直接生成分析结果。")
+
+        with st.expander("查看本次发送给大模型的 Prompt", expanded=False):
+            st.text_area(
+                "提示词内容",
+                selected["llm_prompt"],
+                height=300,
+                key=f"llm_prompt_{selected_state_key}",
+            )
+
+        result_key = f"llm_result_{selected_state_key}"
+        if st.button("调用大模型生成分析", type="primary", key=f"call_llm_{selected_state_key}"):
+            with st.spinner("大模型正在分析这个热点，请稍等……"):
+                success, result = call_llm(selected["llm_prompt"])
+            st.session_state[result_key] = {"success": success, "text": result}
+
+        if result_key in st.session_state:
+            llm_result = st.session_state[result_key]
+            if llm_result["success"]:
+                st.markdown("#### 大模型分析结果")
+                st.markdown(llm_result["text"])
+            else:
+                st.warning(llm_result["text"])
 
     st.subheader("导出报告")
     csv_bytes = candidates.to_csv(index=False).encode("utf-8-sig")
