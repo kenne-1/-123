@@ -5,7 +5,6 @@ from datetime import timedelta
 from html import escape
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -554,6 +553,104 @@ def apply_ui_styles() -> None:
             font-size: 1.02rem;
             font-weight: 600;
         }
+        .chart-shell {
+            background: #FFFFFF;
+            border: 1px solid #E7E9F2;
+            border-radius: 16px;
+            padding: 18px 18px 14px;
+            margin-top: 8px;
+        }
+        .chart-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+            color: #697386;
+            font-size: 0.78rem;
+        }
+        .chart-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .chart-legend-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .chart-rows {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .chart-row {
+            display: grid;
+            grid-template-columns: 72px minmax(0, 1fr) 48px;
+            gap: 10px;
+            align-items: center;
+        }
+        .chart-row-label {
+            color: #252A3A;
+            font-size: 0.9rem;
+            text-align: right;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .chart-row-track {
+            height: 16px;
+            border-radius: 999px;
+            background: repeating-linear-gradient(
+                to right,
+                #F1F3F8 0,
+                #F1F3F8 calc(20% - 1px),
+                #DDE1EA calc(20% - 1px),
+                #DDE1EA 20%
+            );
+            overflow: hidden;
+        }
+        .chart-row-fill {
+            height: 100%;
+            border-radius: 999px;
+        }
+        .chart-row-value {
+            color: #252A3A;
+            font-size: 0.88rem;
+            font-variant-numeric: tabular-nums;
+        }
+        .chart-scale {
+            display: grid;
+            grid-template-columns: 72px minmax(0, 1fr) 48px;
+            gap: 10px;
+            margin-top: 8px;
+            color: #9AA4B2;
+            font-size: 0.72rem;
+        }
+        .chart-scale-values {
+            display: flex;
+            justify-content: space-between;
+        }
+        .distribution-row {
+            display: grid;
+            grid-template-columns: 64px minmax(0, 1fr) 36px;
+            gap: 10px;
+            align-items: center;
+        }
+        @media (max-width: 700px) {
+            .chart-row {
+                grid-template-columns: 56px minmax(0, 1fr) 42px;
+                gap: 8px;
+            }
+            .chart-scale {
+                grid-template-columns: 56px minmax(0, 1fr) 42px;
+                gap: 8px;
+            }
+            .distribution-row {
+                grid-template-columns: 54px minmax(0, 1fr) 32px;
+                gap: 8px;
+            }
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -565,59 +662,72 @@ def render_bar_chart(top_candidates: pd.DataFrame) -> None:
         st.info("暂无可展示的候选热梗。")
         return
 
-    plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "SimHei", "Microsoft YaHei", "DejaVu Sans"]
-    plt.rcParams["axes.unicode_minus"] = False
-
     chart_data = top_candidates.sort_values("usability_score", ascending=True)
-    fig, ax = plt.subplots(figsize=(8.2, 4.5))
-    colors = [LEVEL_COLORS.get(level, "#9AA4B2") for level in chart_data["decision"]]
-    ax.barh(chart_data["phrase"], chart_data["usability_score"], color=colors)
-    ax.set_xlabel("可用性评分", color="#697386")
-    ax.set_ylabel("")
-    ax.set_xlim(0, 105)
-    ax.grid(axis="x", linestyle="--", linewidth=0.8, color="#DDE1EA", alpha=0.8)
-    ax.set_axisbelow(True)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_visible(False)
-    ax.spines["bottom"].set_color("#DDE1EA")
-    ax.tick_params(axis="y", length=0, colors="#252A3A", labelsize=10)
-    ax.tick_params(axis="x", colors="#697386", labelsize=9)
-    for index, value in enumerate(chart_data["usability_score"]):
-        ax.text(value + 1.2, index, f"{value:.1f}", va="center", color="#252A3A", fontsize=9)
-    fig.patch.set_facecolor("white")
-    ax.set_facecolor("white")
-    fig.tight_layout()
-    st.pyplot(fig, clear_figure=True)
+    legend = "".join(
+        f'<span class="chart-legend-item"><span class="chart-legend-dot" style="background:{LEVEL_COLORS[level]}"></span>{escape(level)}</span>'
+        for level in LEVEL_ORDER
+    )
+    rows = []
+    for row in chart_data.itertuples(index=False):
+        value = float(row.usability_score)
+        width = max(0, min(value, 100))
+        color = LEVEL_COLORS.get(row.decision, "#9AA4B2")
+        rows.append(
+            f"""
+            <div class="chart-row">
+                <div class="chart-row-label" title="{escape(str(row.phrase))}">{escape(str(row.phrase))}</div>
+                <div class="chart-row-track"><div class="chart-row-fill" style="width:{width:.2f}%;background:{color};"></div></div>
+                <div class="chart-row-value">{value:.1f}</div>
+            </div>
+            """
+        )
+    st.markdown(
+        f"""
+        <div class="chart-shell">
+            <div class="chart-legend">{legend}</div>
+            <div class="chart-rows">{''.join(rows)}</div>
+            <div class="chart-scale">
+                <span></span>
+                <span class="chart-scale-values"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span></span>
+                <span></span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_level_distribution(candidates: pd.DataFrame) -> None:
     counts = candidates["decision"].value_counts().reindex(LEVEL_ORDER, fill_value=0)
-    chart_data = counts.iloc[::-1]
-
-    plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "SimHei", "Microsoft YaHei", "DejaVu Sans"]
-    plt.rcParams["axes.unicode_minus"] = False
-
-    fig, ax = plt.subplots(figsize=(5.2, 4.5))
-    colors = [LEVEL_COLORS[level] for level in chart_data.index]
-    ax.barh(chart_data.index, chart_data.values, color=colors, height=0.58)
-    ax.set_xlim(0, max(int(chart_data.max()) * 1.22, 5))
-    ax.set_xlabel("候选数量", color="#697386")
-    ax.set_ylabel("")
-    ax.grid(axis="x", linestyle="--", linewidth=0.8, color="#DDE1EA", alpha=0.8)
-    ax.set_axisbelow(True)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_visible(False)
-    ax.spines["bottom"].set_color("#DDE1EA")
-    ax.tick_params(axis="y", length=0, colors="#252A3A", labelsize=10)
-    ax.tick_params(axis="x", colors="#697386", labelsize=9)
-    for index, value in enumerate(chart_data.values):
-        ax.text(value + 0.35, index, str(int(value)), va="center", color="#252A3A", fontsize=10)
-    fig.patch.set_facecolor("white")
-    ax.set_facecolor("white")
-    fig.tight_layout()
-    st.pyplot(fig, clear_figure=True)
+    max_count = max(int(counts.max()), 1)
+    rows = []
+    for level in LEVEL_ORDER:
+        value = int(counts[level])
+        width = value / max_count * 100
+        color = LEVEL_COLORS[level]
+        rows.append(
+            f"""
+            <div class="distribution-row">
+                <div class="chart-row-label">{escape(level)}</div>
+                <div class="chart-row-track"><div class="chart-row-fill" style="width:{width:.2f}%;background:{color};"></div></div>
+                <div class="chart-row-value">{value}</div>
+            </div>
+            """
+        )
+    scale_max = max_count if max_count <= 5 else int(np.ceil(max_count / 5) * 5)
+    st.markdown(
+        f"""
+        <div class="chart-shell">
+            <div class="chart-rows">{''.join(rows)}</div>
+            <div class="chart-scale">
+                <span></span>
+                <span class="chart-scale-values"><span>0</span><span>{scale_max // 4}</span><span>{scale_max // 2}</span><span>{scale_max * 3 // 4}</span><span>{scale_max}</span></span>
+                <span></span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_priority_phrase_lists(candidates: pd.DataFrame) -> None:
@@ -673,13 +783,20 @@ def main() -> None:
     st.set_page_config(page_title="AI 辅助热点洞察与趋势决策工作流", layout="wide")
     apply_ui_styles()
     st.title("AI 辅助热点洞察与趋势决策工作流")
-    st.caption("默认使用模拟数据和本地规则；配置 API Key 后，可直接调用大模型生成热点解读。")
-    st.caption("热点等级：夯＝直接跟进 · 人上人＝小范围试水 · NPC＝继续观察 · 拉完了＝不建议使用")
 
     with st.expander("项目说明", expanded=True):
-        st.write(
-            "这是一个作品集用的简化工作流：从模拟热点内容进入，经过清洗、候选短语提取、"
-            "增长与覆盖判断、生命周期标注，并生成可选的大模型分析 Prompt，最后输出可下载报告。"
+        st.markdown(
+            """
+            这是一个面向内容运营的 AI 热点洞察 Agent：把模拟的社交媒体内容输入，自动清洗、提取候选短语、计算增长与覆盖指标，再按“夯、人上人、NPC、拉完了”四个等级输出判断，并可调用大模型生成语义解释和内容建议。
+
+            **搭建原理：** 本地规则负责数据处理、热梗提取、评分和分级；大模型负责理解热梗语义，并把分析结果转成运营团队可以直接阅读和执行的建议。
+
+            **使用场景：** 内容运营做日常热点监测、品牌 campaign 选题、社交媒体趋势复盘，以及从热点发现到内容测试的快速决策。
+
+            **可以解决的问题：** 热点信息分散、人工筛选耗时、判断口径不一致，以及发现热点后难以继续转化为具体内容动作。
+
+            当前 Demo 使用脱敏模拟数据；配置 API Key 后，可以在选择具体热梗时调用大模型生成分析。
+            """
         )
 
     uploaded_file = st.sidebar.file_uploader("上传自己的 CSV", type=["csv"])
