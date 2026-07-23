@@ -673,26 +673,16 @@ def render_bar_chart(top_candidates: pd.DataFrame) -> None:
         width = max(0, min(value, 100))
         color = LEVEL_COLORS.get(row.decision, "#9AA4B2")
         rows.append(
-            f"""
-            <div class="chart-row">
-                <div class="chart-row-label" title="{escape(str(row.phrase))}">{escape(str(row.phrase))}</div>
-                <div class="chart-row-track"><div class="chart-row-fill" style="width:{width:.2f}%;background:{color};"></div></div>
-                <div class="chart-row-value">{value:.1f}</div>
-            </div>
-            """
+            f'<div class="chart-row"><div class="chart-row-label" title="{escape(str(row.phrase))}">{escape(str(row.phrase))}</div>'
+            f'<div class="chart-row-track"><div class="chart-row-fill" style="width:{width:.2f}%;background:{color};"></div></div>'
+            f'<div class="chart-row-value">{value:.1f}</div></div>'
         )
     st.markdown(
-        f"""
-        <div class="chart-shell">
-            <div class="chart-legend">{legend}</div>
-            <div class="chart-rows">{''.join(rows)}</div>
-            <div class="chart-scale">
-                <span></span>
-                <span class="chart-scale-values"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span></span>
-                <span></span>
-            </div>
-        </div>
-        """,
+        f'<div class="chart-shell"><div class="chart-legend">{legend}</div>'
+        f'<div class="chart-rows">{"".join(rows)}</div>'
+        '<div class="chart-scale"><span></span>'
+        '<span class="chart-scale-values"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span></span>'
+        '<span></span></div></div>',
         unsafe_allow_html=True,
     )
 
@@ -706,26 +696,16 @@ def render_level_distribution(candidates: pd.DataFrame) -> None:
         width = value / max_count * 100
         color = LEVEL_COLORS[level]
         rows.append(
-            f"""
-            <div class="distribution-row">
-                <div class="chart-row-label">{escape(level)}</div>
-                <div class="chart-row-track"><div class="chart-row-fill" style="width:{width:.2f}%;background:{color};"></div></div>
-                <div class="chart-row-value">{value}</div>
-            </div>
-            """
+            f'<div class="distribution-row"><div class="chart-row-label">{escape(level)}</div>'
+            f'<div class="chart-row-track"><div class="chart-row-fill" style="width:{width:.2f}%;background:{color};"></div></div>'
+            f'<div class="chart-row-value">{value}</div></div>'
         )
     scale_max = max_count if max_count <= 5 else int(np.ceil(max_count / 5) * 5)
     st.markdown(
-        f"""
-        <div class="chart-shell">
-            <div class="chart-rows">{''.join(rows)}</div>
-            <div class="chart-scale">
-                <span></span>
-                <span class="chart-scale-values"><span>0</span><span>{scale_max // 4}</span><span>{scale_max // 2}</span><span>{scale_max * 3 // 4}</span><span>{scale_max}</span></span>
-                <span></span>
-            </div>
-        </div>
-        """,
+        f'<div class="chart-shell"><div class="chart-rows">{"".join(rows)}</div>'
+        f'<div class="chart-scale"><span></span><span class="chart-scale-values"><span>0</span>'
+        f'<span>{scale_max // 4}</span><span>{scale_max // 2}</span><span>{scale_max * 3 // 4}</span><span>{scale_max}</span></span>'
+        '<span></span></div></div>',
         unsafe_allow_html=True,
     )
 
