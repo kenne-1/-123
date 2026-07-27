@@ -1,9 +1,11 @@
 import io
+import json
 import re
 from collections import Counter
 from datetime import timedelta
 from html import escape
 from pathlib import Path
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -92,6 +94,46 @@ LEVEL_STYLE_CLASSES = {
     "拉完了": "level-callout-low",
 }
 
+BRAND_INDUSTRIES = ["通用", "美妆", "食品饮料", "家清", "数码", "其他"]
+BRAND_TONES = ["年轻", "专业", "高端", "实用"]
+CAMPAIGN_GOALS = ["曝光", "互动", "转化", "内容测试", "其他"]
+
+LLM_RESPONSE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "semantic_explanation": {"type": "string"},
+        "emotion": {"type": "string"},
+        "business_value": {"type": "string"},
+        "content_actions": {"type": "array", "items": {"type": "string"}},
+        "risk_tips": {"type": "array", "items": {"type": "string"}},
+        "cta": {"type": "string"},
+    },
+    "required": [
+        "semantic_explanation",
+        "emotion",
+        "business_value",
+        "content_actions",
+        "risk_tips",
+        "cta",
+    ],
+}
+
+INDUSTRY_GUIDANCE = {
+    "通用": "优先判断这个热点是否容易转化为品牌内容场景，并关注用户是否愿意参与和分享。",
+    "美妆": "重点关注妆容、护肤、使用场景、效果表达和情绪共鸣，避免无法验证的功效承诺。",
+    "食品饮料": "重点关注口味、早餐、解馋、囤货、聚会和日常生活场景，避免夸大健康功效。",
+    "家清": "重点关注清洁痛点、家庭场景、前后对比、效率和真实体验，避免过度承诺效果。",
+    "数码": "重点关注通勤、效率、性能、续航、便携和真实体验，避免只追逐娱乐化表达。",
+}
+
+GOAL_GUIDANCE = {
+    "曝光": "优先建议低门槛、容易理解和容易扩散的内容形式，并给出可观察的传播信号。",
+    "互动": "优先建议提问、评论区参与、投票、共创或用户分享等互动机制。",
+    "转化": "优先建议把热点与产品使用场景、购买理由和明确 CTA 连接起来。",
+    "内容测试": "优先建议小范围、低成本的内容实验，并说明应该观察哪些反馈指标。",
+}
+
 DISPLAY_LABELS = {
     "phrase": "候选短语",
     "freq_recent": "近7天频次",
@@ -108,12 +150,16 @@ DISPLAY_LABELS = {
 }
 
 
+@st.cache_data(show_spinner=False)
+def load_data_from_bytes(file_bytes: bytes) -> pd.DataFrame:
+    df = pd.read_csv(io.BytesIO(file_bytes))
+    return validate_and_prepare(df)
+
+
 def load_data(uploaded_file=None) -> pd.DataFrame:
     if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_csv(BASE_DIR / "sample_hotspot_data.csv")
-    return validate_and_prepare(df)
+        return load_data_from_bytes(uploaded_file.getvalue())
+    return load_data_from_bytes((BASE_DIR / "sample_hotspot_data.csv").read_bytes())
 
 
 def get_llm_settings() -> tuple[str, str]:
@@ -127,8 +173,8 @@ def get_llm_settings() -> tuple[str, str]:
     return api_key, model or "gpt-5.6"
 
 
-def call_llm(prompt: str) -> tuple[bool, str]:
-    """调用 OpenAI Responses API，返回是否成功和可展示文本。"""
+def call_llm(prompt: str) -> Tuple[bool, Union[dict, str]]:
+    """调用 OpenAI Responses API，返回是否成功和结构化分析结果。"""
     api_key, model = get_llm_settings()
     if not api_key:
         return False, "尚未配置大模型 API Key。请先在本地或 Streamlit Cloud 的 Secrets 中配置。"
@@ -144,13 +190,50 @@ def call_llm(prompt: str) -> tuple[bool, str]:
                 "不要编造数据，也不要把模拟数据描述成真实平台数据。"
             ),
             input=prompt,
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "hotspot_analysis",
+                    "strict": True,
+                    "schema": LLM_RESPONSE_SCHEMA,
+                }
+            },
         )
-        result = (response.output_text or "").strip()
-        if not result:
-            return False, "大模型没有返回可展示的文本，请稍后重试。"
+        raw_result = (response.output_text or "").strip()
+        if not raw_result:
+            return False, "大模型没有返回可展示的内容，请稍后重试。"
+        result = json.loads(raw_result)
+        if not isinstance(result, dict):
+            return False, "大模型返回的结果格式不正确，请稍后重试。"
         return True, result
     except Exception as exc:
         return False, f"大模型调用失败，请检查 API Key、模型名称或账户额度。\n\n错误信息：{exc}"
+
+
+def render_llm_result(result: dict) -> None:
+    """将结构化的大模型结果拆成易读的内容卡片。"""
+    st.markdown("#### 大模型分析结果")
+    st.markdown(f"**语义解释**\n\n{result.get('semantic_explanation', '暂无')}")
+    st.markdown(f"**情绪倾向**\n\n{result.get('emotion', '暂无')}")
+    st.markdown(f"**商业价值**\n\n{result.get('business_value', '暂无')}")
+
+    st.markdown("**内容行动**")
+    actions = result.get("content_actions", [])
+    if actions:
+        for action in actions:
+            st.markdown(f"- {action}")
+    else:
+        st.write("暂无内容行动建议")
+
+    st.markdown("**风险提示**")
+    risks = result.get("risk_tips", [])
+    if risks:
+        for risk in risks:
+            st.markdown(f"- {risk}")
+    else:
+        st.write("暂无额外风险提示")
+
+    st.markdown(f"**CTA 引导**\n\n{result.get('cta', '暂无')}")
 
 
 def validate_and_prepare(df: pd.DataFrame) -> pd.DataFrame:
@@ -214,12 +297,14 @@ def calculate_pmi_like_score(phrase: str, phrase_freq: int, char_counter: Counte
     return round(float(np.log2(phrase_prob / independent_prob + 1e-9)), 3)
 
 
+@st.cache_data(show_spinner=False)
 def build_candidates(
     df: pd.DataFrame,
     min_freq: int,
     min_brand_coverage: int,
     growth_threshold: float,
     n_values=(2, 3),
+    brand_profile: Optional[dict] = None,
 ) -> pd.DataFrame:
     working = df.copy()
     working["clean_text"] = working["text"].map(clean_text)
@@ -314,7 +399,8 @@ def build_candidates(
                         "lifecycle": lifecycle,
                         "decision": decision,
                         "risk_tip": risk,
-                    }
+                    },
+                    brand_profile=brand_profile,
                 ),
             }
         )
@@ -367,8 +453,39 @@ def make_risk_tip(phrase: str, lifecycle: str, brand_coverage: int, platform_cov
     return "；".join(risks) if risks else "风险较低，但仍需人工复核语境"
 
 
-def generate_llm_prompt(row: dict) -> str:
+def build_brand_strategy_context(brand_profile: Optional[dict]) -> dict:
+    profile = brand_profile or {}
+    industry = profile.get("industry", "通用")
+    goal = profile.get("goal", "内容测试")
+    return {
+        "fit_focus": INDUSTRY_GUIDANCE.get(
+            industry,
+            "请结合用户填写的行业和品牌补充信息，判断热点是否适合该品牌的真实内容场景。",
+        ),
+        "goal_focus": GOAL_GUIDANCE.get(
+            goal,
+            "请结合用户填写的营销目标，给出可执行且可衡量的行动建议。",
+        ),
+    }
+
+
+def generate_llm_prompt(row: dict, brand_profile: Optional[dict] = None) -> str:
+    brand_profile = brand_profile or {
+        "industry": "通用",
+        "tone": "年轻",
+        "goal": "内容测试",
+        "notes": "未补充其他品牌信息",
+    }
+    strategy_context = build_brand_strategy_context(brand_profile)
     return f"""你是消费品牌内容策略顾问。请基于以下模拟热点候选短语，输出一段适合运营团队阅读的解释。
+
+当前品牌画像：
+品牌行业：{brand_profile['industry']}
+品牌调性：{brand_profile['tone']}
+本次目标：{brand_profile['goal']}
+品牌补充信息：{brand_profile['notes']}
+行业适配重点：{strategy_context['fit_focus']}
+目标策略重点：{strategy_context['goal_focus']}
 
 候选短语：{row['phrase']}
 近 7 天频次：{row['freq_recent']}
@@ -383,20 +500,33 @@ def generate_llm_prompt(row: dict) -> str:
 请按以下结构输出：
 1. 语义解释
 2. 情绪倾向
-3. 商业价值
-4. 内容建议
+3. 商业价值：必须说明为什么适合或不适合当前品牌行业、调性和目标
+4. 内容建议：至少给出 2 条具体动作，每条包含内容形式、切入点和建议观察指标
 5. 风险提示
 6. CTA 引导
 
-注意：数据为虚构模拟数据，不要声称来自真实平台或真实品牌。"""
+注意：数据为虚构模拟数据，不要声称来自真实平台或真实品牌。如果热点与品牌不匹配，请明确说明不建议跟进。"""
 
 
-def build_markdown_report(candidates: pd.DataFrame) -> str:
+def build_markdown_report(candidates: pd.DataFrame, brand_profile: Optional[dict] = None) -> str:
+    brand_profile = brand_profile or {
+        "industry": "通用",
+        "tone": "年轻",
+        "goal": "内容测试",
+        "notes": "未补充其他品牌信息",
+    }
     top = candidates.head(10)
     lines = [
         "# AI 辅助热点洞察与趋势决策报告",
         "",
         "说明：本报告基于本地模拟数据生成，不连接真实平台，不包含公司内部数据。",
+        "",
+        "## 本次分析品牌画像",
+        "",
+        f"- 品牌行业：{brand_profile['industry']}",
+        f"- 品牌调性：{brand_profile['tone']}",
+        f"- 本次目标：{brand_profile['goal']}",
+        f"- 品牌补充信息：{brand_profile['notes']}",
         "",
         "## Top 10 候选热梗",
         "",
@@ -780,6 +910,37 @@ def main() -> None:
         )
 
     uploaded_file = st.sidebar.file_uploader("上传自己的 CSV", type=["csv"])
+    st.sidebar.subheader("品牌画像")
+    brand_industry_choice = st.sidebar.selectbox("品牌行业", BRAND_INDUSTRIES, index=0)
+    if brand_industry_choice == "其他":
+        custom_industry = st.sidebar.text_input("自定义行业", placeholder="例如：宠物、教育、服饰")
+        brand_industry = custom_industry.strip() or "其他行业"
+    else:
+        brand_industry = brand_industry_choice
+
+    tone_choices = st.sidebar.multiselect("品牌调性（可多选）", BRAND_TONES, default=["年轻"])
+    custom_tone = st.sidebar.text_input("补充调性（可选）", placeholder="例如：松弛、极简")
+    tone_parts = tone_choices + ([custom_tone.strip()] if custom_tone.strip() else [])
+    brand_tone = "、".join(tone_parts) or "未指定"
+
+    campaign_goal_choice = st.sidebar.selectbox("本次目标", CAMPAIGN_GOALS, index=0)
+    if campaign_goal_choice == "其他":
+        custom_goal = st.sidebar.text_input("自定义目标", placeholder="例如：新品种草、口碑维护")
+        campaign_goal = custom_goal.strip() or "其他目标"
+    else:
+        campaign_goal = campaign_goal_choice
+
+    brand_notes = st.sidebar.text_area(
+        "品牌补充信息（可选）",
+        placeholder="例如：主要面向学生群体，强调性价比；避免过度夸张表达。",
+        height=90,
+    ).strip() or "未补充其他品牌信息"
+    brand_profile = {
+        "industry": brand_industry,
+        "tone": brand_tone,
+        "goal": campaign_goal,
+        "notes": brand_notes,
+    }
     min_freq = st.sidebar.slider("min_freq：近 7 天最低频次", min_value=1, max_value=20, value=3)
     min_brand_coverage = st.sidebar.slider("min_brand_coverage：最低品牌覆盖", 1, 5, 2)
     growth_threshold = st.sidebar.slider("growth_threshold：增长判断阈值", 0.0, 3.0, 0.5, 0.1)
@@ -798,11 +959,22 @@ def main() -> None:
     col_b.metric("覆盖平台", df["platform"].nunique())
     col_c.metric("模拟品牌", df["brand"].nunique())
     col_d.metric("日期跨度", f"{df['date'].min().date()} 至 {df['date'].max().date()}")
+    st.caption(
+        f"当前分析画像：{brand_profile['industry']}行业 · {brand_profile['tone']}调性 · "
+        f"目标为{brand_profile['goal']}"
+    )
     with st.expander(f"查看原始数据（前 20 条 / 共 {len(df)} 条）", expanded=False):
         st.dataframe(df.head(20), use_container_width=True)
 
     st.subheader("候选热梗结果表")
-    candidates = build_candidates(df, min_freq, min_brand_coverage, growth_threshold, n_values=n_values)
+    candidates = build_candidates(
+        df,
+        min_freq,
+        min_brand_coverage,
+        growth_threshold,
+        n_values=n_values,
+        brand_profile=brand_profile,
+    )
     if candidates.empty:
         st.warning("当前筛选条件下没有识别到候选热梗。建议先把 min_freq 调到 3、品牌覆盖调到 2，再逐步收紧条件。")
         return
@@ -891,7 +1063,16 @@ def main() -> None:
         st.write(f"风险提示：{selected['risk_tip']}")
     with right:
         st.markdown("#### 大模型分析")
-        st.caption("配置 API Key 后，点击按钮即可让大模型根据当前热点数据生成内容建议。")
+        st.caption(
+            f"大模型将从{brand_profile['industry']}行业、{brand_profile['tone']}调性和{brand_profile['goal']}目标出发，"
+            "根据当前热点数据生成内容建议。"
+        )
+        strategy_context = build_brand_strategy_context(brand_profile)
+        with st.expander("查看本次品牌适配策略", expanded=True):
+            st.write(f"**行业关注：** {strategy_context['fit_focus']}")
+            st.write(f"**目标关注：** {strategy_context['goal_focus']}")
+            if brand_profile["notes"] != "未补充其他品牌信息":
+                st.write(f"**品牌补充：** {brand_profile['notes']}")
         api_key, _ = get_llm_settings()
         if api_key:
             st.success("大模型 API 已配置")
@@ -915,14 +1096,17 @@ def main() -> None:
         if result_key in st.session_state:
             llm_result = st.session_state[result_key]
             if llm_result["success"]:
-                st.markdown("#### 大模型分析结果")
-                st.markdown(llm_result["text"])
+                if isinstance(llm_result["text"], dict):
+                    render_llm_result(llm_result["text"])
+                else:
+                    st.markdown("#### 大模型分析结果")
+                    st.markdown(llm_result["text"])
             else:
                 st.warning(llm_result["text"])
 
     st.subheader("导出报告")
     csv_bytes = candidates.to_csv(index=False).encode("utf-8-sig")
-    markdown_report = build_markdown_report(candidates)
+    markdown_report = build_markdown_report(candidates, brand_profile=brand_profile)
     export_left, export_right = st.columns(2)
     with export_left:
         st.download_button(
