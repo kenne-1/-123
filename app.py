@@ -166,16 +166,16 @@ GENERIC_STANDALONE_TERMS = {
 }
 
 HOTNESS_COLORS = {
-    "高": "#5B5BD6",
-    "中": "#2F9A83",
-    "低": "#9AA4B2",
+    "高": "#0F6B73",
+    "中": "#557681",
+    "低": "#A7B4B9",
 }
 LIFECYCLE_ORDER = ["爆发中", "潜力期", "低热观察", "衰减期"]
 LIFECYCLE_COLORS = {
-    "爆发中": "#5B5BD6",
-    "潜力期": "#2F9A83",
-    "低热观察": "#9AA4B2",
-    "衰减期": "#D7795A",
+    "爆发中": "#0F6B73",
+    "潜力期": "#557681",
+    "低热观察": "#A7B4B9",
+    "衰减期": "#B36A52",
 }
 
 BEAUTY_BRAND_TIERS = ["高端", "轻奢", "中端", "大众", "其他"]
@@ -463,7 +463,7 @@ def render_column_mapping(raw_df: pd.DataFrame, default_mapping: dict, default_m
             if mapping[field] != default_mapping.get(field)
             else default_methods.get(field, "自动识别")
         )
-    st.dataframe(build_mapping_report(mapping, methods), use_container_width=True, hide_index=True)
+    st.dataframe(build_mapping_report(mapping, methods), width="stretch", hide_index=True)
     return mapping, methods
 
 
@@ -1707,58 +1707,168 @@ def apply_ui_styles() -> None:
     st.markdown(
         """
         <style>
+        :root {
+            --canvas: #F3F6F7;
+            --surface: #FFFFFF;
+            --surface-muted: #F8FAFA;
+            --ink: #12222B;
+            --ink-subtle: #5E7079;
+            --line: #D9E2E5;
+            --line-strong: #C7D4D8;
+            --teal: #0F6B73;
+            --teal-dark: #0A4F56;
+            --teal-soft: #E5F1F1;
+            --danger-soft: #F9EEEA;
+        }
+        .stApp {
+            background: var(--canvas);
+            color: var(--ink);
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+        }
         .block-container {
-            max-width: 1440px;
-            padding-top: 2rem;
-            padding-bottom: 3rem;
+            max-width: 1480px;
+            padding-top: 2.5rem;
+            padding-bottom: 4rem;
+        }
+        h1, h2, h3, h4 {
+            color: var(--ink);
+            letter-spacing: -0.025em;
+        }
+        h1 {
+            font-size: clamp(2rem, 3.2vw, 3rem);
+            font-weight: 760;
+            letter-spacing: -0.04em;
+            margin-bottom: 1.25rem;
+        }
+        h2 {
+            font-weight: 720;
+        }
+        h3 {
+            margin-top: 2.6rem;
+            margin-bottom: 0.7rem;
+            font-size: 1.45rem;
+            font-weight: 720;
+        }
+        [data-testid="stSidebar"] {
+            background: #F8FAFA;
+            border-right: 1px solid var(--line);
+        }
+        [data-testid="stSidebar"] > div:first-child {
+            padding-top: 1.35rem;
+        }
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+            color: var(--ink-subtle);
         }
         [data-testid="stMetric"] {
-            background: #F7F8FC;
-            border: 1px solid #E7E9F2;
-            border-radius: 14px;
-            padding: 14px 16px;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 16px 18px;
+            min-height: 104px;
         }
         [data-testid="stMetricLabel"] {
-            color: #697386;
-            font-size: 0.82rem;
+            color: var(--ink-subtle);
+            font-size: 0.8rem;
+            font-weight: 580;
         }
         [data-testid="stMetricValue"] {
-            color: #171A2B;
-            font-weight: 700;
+            color: var(--ink);
+            font-weight: 760;
+            font-variant-numeric: tabular-nums;
         }
         [data-testid="stDataFrame"] {
-            border: 1px solid #E7E9F2;
+            background: var(--surface);
+            border: 1px solid var(--line);
             border-radius: 12px;
+        }
+        [data-testid="stExpander"] {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+        }
+        [data-testid="stExpander"] summary {
+            color: var(--ink);
+            font-weight: 650;
         }
         [data-testid="stSelectbox"] [data-baseweb="select"] > div {
             min-height: 58px;
-            border-radius: 14px;
-            background: #F7F8FC;
-            border-color: #DDE1EA;
+            border-radius: 10px;
+            background: var(--surface);
+            border-color: var(--line-strong);
         }
         [data-testid="stSelectbox"] [data-baseweb="select"] span {
-            font-size: 1.08rem;
+            color: var(--ink);
+            font-size: 1rem;
         }
         [data-testid="stSelectbox"] label {
-            font-size: 1.05rem;
-            font-weight: 600;
+            color: var(--ink);
+            font-size: 0.96rem;
+            font-weight: 650;
+        }
+        [data-testid="stButton"] > button,
+        [data-testid="stDownloadButton"] > button {
+            min-height: 40px;
+            border-radius: 8px;
+            border: 1px solid var(--teal);
+            background: var(--teal);
+            color: #FFFFFF;
+            font-weight: 650;
+            transition: background 160ms ease, transform 160ms ease;
+        }
+        [data-testid="stButton"] > button:hover,
+        [data-testid="stDownloadButton"] > button:hover {
+            background: var(--teal-dark);
+            border-color: var(--teal-dark);
+        }
+        [data-testid="stButton"] > button:active,
+        [data-testid="stDownloadButton"] > button:active {
+            transform: translateY(1px);
+        }
+        [data-testid="stSlider"] [data-baseweb="slider"] > div > div:first-child {
+            background: #D8E5E6 !important;
+        }
+        [data-testid="stSlider"] [data-baseweb="slider"] > div > div:first-child > div {
+            background: var(--teal) !important;
+        }
+        [data-testid="stSlider"] [role="slider"] {
+            background: var(--teal) !important;
+            color: var(--teal) !important;
+        }
+        [data-testid="stSlider"] [data-testid="stSliderThumbValue"] {
+            color: var(--teal) !important;
+            font-weight: 700;
+        }
+        [data-testid="stRadio"] [data-baseweb="radio"]:has(input:checked) > div:first-child {
+            background: var(--teal) !important;
+            border-color: var(--teal) !important;
+        }
+        [data-testid="stRadio"] [data-baseweb="radio"]:has(input:checked) > div:first-child > div {
+            background: #FFFFFF !important;
         }
         .stAlert {
-            border-radius: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+        }
+        [data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"]) {
+            background: #E6F0F1 !important;
+            border-color: #C5DCDE !important;
+        }
+        [data-testid="stAlertContentInfo"] p {
+            color: #174E55 !important;
         }
         .chart-shell {
-            background: #FFFFFF;
-            border: 1px solid #E7E9F2;
-            border-radius: 16px;
-            padding: 18px 18px 14px;
-            margin-top: 8px;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 20px 20px 16px;
+            margin-top: 10px;
         }
         .chart-legend {
             display: flex;
             flex-wrap: wrap;
             gap: 12px;
-            margin-bottom: 16px;
-            color: #697386;
+            margin-bottom: 18px;
+            color: var(--ink-subtle);
             font-size: 0.78rem;
         }
         .chart-legend-item {
@@ -1775,32 +1885,33 @@ def apply_ui_styles() -> None:
         .chart-rows {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 13px;
         }
         .chart-row {
             display: grid;
-            grid-template-columns: 72px minmax(0, 1fr) 48px;
-            gap: 10px;
+            grid-template-columns: 28px 74px minmax(0, 1fr) 52px;
+            gap: 12px;
             align-items: center;
         }
+        .chart-rank {
+            color: var(--ink-subtle);
+            font-size: 0.74rem;
+            font-weight: 720;
+            font-variant-numeric: tabular-nums;
+        }
         .chart-row-label {
-            color: #252A3A;
+            color: var(--ink);
             font-size: 0.9rem;
+            font-weight: 620;
             text-align: right;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
         .chart-row-track {
-            height: 16px;
+            height: 14px;
             border-radius: 999px;
-            background: repeating-linear-gradient(
-                to right,
-                #F1F3F8 0,
-                #F1F3F8 calc(20% - 1px),
-                #DDE1EA calc(20% - 1px),
-                #DDE1EA 20%
-            );
+            background: #EAF0F1;
             overflow: hidden;
         }
         .chart-row-fill {
@@ -1808,16 +1919,17 @@ def apply_ui_styles() -> None:
             border-radius: 999px;
         }
         .chart-row-value {
-            color: #252A3A;
+            color: var(--ink);
             font-size: 0.88rem;
+            font-weight: 700;
             font-variant-numeric: tabular-nums;
         }
         .chart-scale {
             display: grid;
-            grid-template-columns: 72px minmax(0, 1fr) 48px;
-            gap: 10px;
+            grid-template-columns: 28px 74px minmax(0, 1fr) 52px;
+            gap: 12px;
             margin-top: 8px;
-            color: #9AA4B2;
+            color: #83949B;
             font-size: 0.72rem;
         }
         .chart-scale-values {
@@ -1830,16 +1942,28 @@ def apply_ui_styles() -> None:
             gap: 10px;
             align-items: center;
         }
+        .distribution-scale {
+            display: grid;
+            grid-template-columns: 64px minmax(0, 1fr) 36px;
+            gap: 10px;
+            margin-top: 8px;
+            color: #83949B;
+            font-size: 0.72rem;
+        }
         @media (max-width: 700px) {
             .chart-row {
-                grid-template-columns: 56px minmax(0, 1fr) 42px;
+                grid-template-columns: 24px 56px minmax(0, 1fr) 42px;
                 gap: 8px;
             }
             .chart-scale {
-                grid-template-columns: 56px minmax(0, 1fr) 42px;
+                grid-template-columns: 24px 56px minmax(0, 1fr) 42px;
                 gap: 8px;
             }
             .distribution-row {
+                grid-template-columns: 54px minmax(0, 1fr) 32px;
+                gap: 8px;
+            }
+            .distribution-scale {
                 grid-template-columns: 54px minmax(0, 1fr) 32px;
                 gap: 8px;
             }
@@ -1855,25 +1979,26 @@ def render_bar_chart(top_candidates: pd.DataFrame) -> None:
         st.info("暂无可展示的候选热梗。")
         return
 
-    chart_data = top_candidates.sort_values("beauty_usability_score", ascending=True)
+    chart_data = top_candidates.sort_values("beauty_usability_score", ascending=False).reset_index(drop=True)
     legend = "".join(
         f'<span class="chart-legend-item"><span class="chart-legend-dot" style="background:{HOTNESS_COLORS[level]}"></span>热度趋势：{escape(level)}</span>'
         for level in ("高", "中", "低")
     )
     rows = []
-    for row in chart_data.itertuples(index=False):
+    for rank, row in enumerate(chart_data.itertuples(index=False), start=1):
         value = float(row.beauty_usability_score)
         width = max(0, min(value, 100))
         color = HOTNESS_COLORS.get(row.hotness_level, "#9AA4B2")
         rows.append(
-            f'<div class="chart-row"><div class="chart-row-label" title="{escape(str(row.phrase))}">{escape(str(row.phrase))}</div>'
+            f'<div class="chart-row"><div class="chart-rank">{rank:02d}</div>'
+            f'<div class="chart-row-label" title="{escape(str(row.phrase))}">{escape(str(row.phrase))}</div>'
             f'<div class="chart-row-track"><div class="chart-row-fill" style="width:{width:.2f}%;background:{color};"></div></div>'
             f'<div class="chart-row-value">{value:.1f}</div></div>'
         )
     st.markdown(
         f'<div class="chart-shell"><div class="chart-legend">{legend}</div>'
         f'<div class="chart-rows">{"".join(rows)}</div>'
-        '<div class="chart-scale"><span></span>'
+        '<div class="chart-scale"><span></span><span></span>'
         '<span class="chart-scale-values"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span></span>'
         '<span></span></div></div>',
         unsafe_allow_html=True,
@@ -1896,7 +2021,7 @@ def render_lifecycle_distribution(candidates: pd.DataFrame) -> None:
     scale_max = max_count if max_count <= 5 else int(np.ceil(max_count / 5) * 5)
     st.markdown(
         f'<div class="chart-shell"><div class="chart-rows">{"".join(rows)}</div>'
-        f'<div class="chart-scale"><span></span><span class="chart-scale-values"><span>0</span>'
+        f'<div class="distribution-scale"><span></span><span class="chart-scale-values"><span>0</span>'
         f'<span>{scale_max // 4}</span><span>{scale_max // 2}</span><span>{scale_max * 3 // 4}</span><span>{scale_max}</span></span>'
         '<span></span></div></div>',
         unsafe_allow_html=True,
@@ -2006,7 +2131,7 @@ def main() -> None:
     col_c.metric("模拟品牌", df["brand"].nunique())
     col_d.metric("日期跨度", f"{df['date'].min().date()} 至 {df['date'].max().date()}")
     with st.expander(f"查看原始数据（前 20 条 / 共 {len(df)} 条）", expanded=False):
-        st.dataframe(df.head(20), use_container_width=True)
+        st.dataframe(df.head(20), width="stretch")
 
     st.subheader("品牌上下文")
     st.caption("输入数据可以来自跨行业榜单；这里用美妆品牌视角判断热点是否值得迁移和使用。")
@@ -2235,13 +2360,13 @@ def main() -> None:
     st.caption("系统已过滤缺少语境的通用行业名词；默认展示最适合快速判断的关键指标，完整评分明细已收起。")
     st.dataframe(
         candidates[compact_cols].rename(columns=DISPLAY_LABELS),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     with st.expander("查看完整评分明细", expanded=False):
         st.dataframe(
             candidates[display_cols].rename(columns=DISPLAY_LABELS),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
